@@ -6,20 +6,26 @@
     <title>𓃚 Mountain Goat VM</title>
     <style type="text/css">
         :root {
+            --text-normal: black;
+            --accent-normal: hsl(150, 78%, 37%);
+            --background-normal: white;
             --background-hl-normal: hsl(0, 0%, 95%);
             --background-hl-deep: hsl(0, 0%, 85%);
             --border-normal: hsl(0, 0%, 85%);
-            --foreground-hl-normal: hsl(150, 78%, 25%);
         }
         
         body, input, textarea {
             font-family: ui-monospace, monospace;
-            color: black;
-            background-color: white;
+            color: var(--text-normal);
+            background-color: var(--background-normal);
         }
         
         details, #output {
             font-size: 80%;
+        }
+        
+        a {
+            color: var(--accent-normal);
         }
         
         nav {
@@ -136,7 +142,7 @@
         
         details[open] summary::after {
             content: " [hide]";
-            color: var(--foreground-hl-normal);
+            color: var(--accent-normal);
         }
         
         code {
@@ -161,6 +167,7 @@
             <li>SET and ADD instructions</li>
         </ul>
         <p>Enter <code>HELP</code> in REPL mode to get started.</p>
+        <p>You can find some unit tests at <a href="./test.html">test.html</a>.</p>
         </section>
     </details>
     
