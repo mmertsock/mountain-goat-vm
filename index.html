@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>𓃚 Mountain Goat VM</title>
+    <style type="text/css">
+        :root {
+            --background-hl-normal: hsl(0, 0%, 95%);
+            --background-hl-deep: hsl(0, 0%, 85%);
+            --border-normal: hsl(0, 0%, 85%);
+            --foreground-hl-normal: hsl(150, 78%, 25%);
+        }
+        
+        body, input, textarea {
+            font-family: ui-monospace, monospace;
+            color: black;
+            background-color: white;
+        }
+        
+        details, #output {
+            font-size: 80%;
+        }
+        
+        nav {
+            text-align: center;
+        }
+        nav a {
+            display: inline-block;
+            text-transform: uppercase;
+            padding: 1pt 0.5em;
+            border: 1px solid var(--border-normal);
+        }
+        nav a:link, a:hover, a:active, a:visited {
+            text-decoration: none;
+        }
+        
+        nav a:first-child {
+            border-radius: 3pt 0 0 3pt;
+        }
+        nav a:last-child {
+            border-radius: 0 3pt 3pt 0;
+        }
+        
+        nav a.active {
+            background-color: var(--background-hl-normal);
+        }
+        
+        #repl, #program {
+            display: none;
+        }
+        
+        .mode-repl #repl {
+            display: block;
+        }
+        
+        .mode-program #program {
+            display: block;
+        }
+        
+        #output ol {
+            max-height: calc(100vh - 6em);
+            overflow-y: scroll;
+            white-space: pre;
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .mode-program #output ol {
+            max-height: calc(50vw - 1em);
+        }
+        
+        #output li {
+            counter-increment: section;
+        }
+        
+        #output li span {
+            display: inline-block;
+        }
+        
+        /* column of right-aligned digits */
+        #output li::before {
+            display: inline-block;
+            padding-right: 0.5em;
+            width: 2.5em;
+            text-align: right;
+            content: counter(section) ".";
+            background-color: var(--background-hl-deep);
+        }
+        
+        #output li.machine-input {
+            background-color: var(--background-hl-normal);
+        }
+        
+        .machine-input span::before {
+            content: "$ ";
+        }
+        
+        .machine-result span::before {
+            content: "> ";
+        }
+        
+        /* TODO: #repl form is a single flex row so we can more easily right-align the button, etc. */
+        #repl input {
+            width: calc(100vw - 8em);
+        }
+        #repl button {
+            margin: 0 0.5em;
+            width: 4em;
+        }
+        
+        #program textarea {
+            display: block;
+            width: calc(100vw - 8em);
+            height: calc(50vw - 1em);
+        }
+        
+        details section {
+            max-width: 40em;
+            margin: 0 0.5em 1em 0.5em;
+            padding: 0.5em;
+            background-color: var(--background-hl-normal);
+            border-radius: 6pt;
+        }
+        
+        details section :first-child {
+            margin-top: 0;
+        }
+        details section :last-child {
+            margin-bottom: 0;
+        }
+        
+        details summary {
+            cursor: pointer;
+        }
+        
+        details[open] summary::after {
+            content: " [hide]";
+            color: var(--foreground-hl-normal);
+        }
+        
+        code {
+            border: 1px solid var(--border-normal);
+            background-color: var(--background-hl-normal);
+            padding: 1pt 2pt;
+            border-radius: 2pt;
+        }
+    </style>
+</head>
+
+<body>
+
+<main>
+    
+    <details open>
+        <summary>𓃚 Mountain Goat VM: Level 1</summary>
+        <section>
+        <p>The very beginnings. First iterations of:</p>
+        <ul>
+            <li>The program interpreter and REPL</li>
+            <li>SET and ADD instructions</li>
+        </ul>
+        <p>Enter <code>HELP</code> in REPL mode to get started.</p>
+        </section>
+    </details>
+    
+    <nav>
+    </nav>
+    
+    <section id="output">
+        <ol></ol>
+    </section>
+    
+    <section id="program">
+        <form action="#">
+            <textarea placeholder="Code"></textarea>
+            <button>Run</button>
+        </form>
+    </section>
+
+    <section id="repl">
+        <div class="machine-state">
+            <!-- TODO: grid showing contents of registers, program counter, etc. -->
+            <!-- Interactive: can directly manipulate the VM state -->
+        </div>
+        
+        <form action="#">
+            <input type="text" placeholder="$"> 
+            <button>Run</button>
+        </form>
+    </section>
+
+</main>
+    
+    <script type="module">
+        import { REPL, Program } from './assembly.js';
+        
+        class App {
+            constructor() {
+                this.rootElem = document.querySelector("main");
+                this.navElem = document.querySelector("nav");
+                this.replView = new REPLView("repl", new OutputView());
+                this.programView = new ProgramView("program", new OutputView());
+                this.pickers = [
+                    this.makePicker(this.replView, "REPL"),
+                    this.makePicker(this.programView, "Program")
+                ];
+                
+                this.showView(this.replView.id);
+            }
+            
+            makePicker(view, title) {
+                let a = document.createElement("a");
+                a.href = "#";
+                a.addEventListener("click", evt => {
+                    evt.preventDefault();
+                    this.showView(view.id);
+                });
+                a.innerText = title;
+                this.navElem.append(a);
+                return { elem: a, view: view };
+            }
+            
+            showView(id) {
+                this.pickers.forEach((picker, i) => {
+                    let visible = (picker.view.id == id);
+                    picker.elem.classList.toggle("active", visible);
+                    this.rootElem.classList.toggle(`mode-${picker.view.id}`, visible);
+                    
+                    if (!visible) {
+                        picker.view.becameInactive();
+                    }
+                });
+                
+                this.pickers.find(picker => picker.view.id == id)?.view.becameActive();
+            }
+        }
+        
+        class PanelView {
+            becameActive() { }
+            becameInactive() { }
+        }
+        
+        class OutputLine {
+            static linesFromText(text, type) {
+                return text.split("\n").map(line => new OutputLine(line, type));
+            }
+            
+            constructor(line, type) {
+                this.line = line;
+                this.type = type;
+            }
+            
+            makeElement() {
+                let li = document.createElement("li");
+                li.classList.add(this.type);
+                let span = document.createElement("span");
+                span.innerText = this.line;
+                li.append(span);
+                return li;
+            }
+        }
+        
+        class OutputView extends PanelView {
+            constructor() {
+                super();
+                this.outputElem = document.querySelector("#output ol");
+                this.isActive = false;
+                this.buffer = []; // array of OutputLine
+            }
+            
+            becameActive() {
+                this.isActive = true;
+                this.resetOutputElem();
+            }
+            becameInactive() {
+                this.isActive = false;
+            }
+            
+            showInput(text) {
+                this.showMessage(text, "machine-input")
+            }
+            
+            showResult(text) {
+                this.showMessage(text, "machine-result");
+            }
+            
+            clear() {
+                this.buffer = [];
+                this.resetOutputElem();
+            }
+            
+            resetOutputElem() {
+                while (this.outputElem.firstChild) {
+                    this.outputElem.removeChild(this.outputElem.firstChild);
+                }
+                this.buffer.forEach(line => {
+                    this.outputElem.append(line.makeElement());
+                });
+                this.outputElem.querySelector("li:last-child")?.scrollIntoView();
+            }
+            
+            showMessage(text, type) {
+                let lines = OutputLine.linesFromText(text, type);
+                lines.forEach(line => {
+                    this.buffer.push(line);
+                    if (this.isActive) {
+                        this.outputElem.append(line.makeElement());
+                    }
+                });
+                if (this.isActive) {
+                    this.outputElem.querySelector("li:last-child")?.scrollIntoView();
+                }
+            }
+        }
+        
+        class REPLView extends PanelView {
+            constructor(id, outputView) {
+                super();
+                this.id = id;
+                this.outputView = outputView;
+                this.repl = new REPL();
+                
+                this.inputFormElem = document.querySelector("#repl form");
+                this.inputElem = this.inputFormElem.querySelector("input");
+                this.inputButtonElem = this.inputFormElem.querySelector("button");
+                
+                this.inputFormElem.addEventListener("submit", evt => this.runInput(evt));
+                this.inputButtonElem.addEventListener("click", evt => this.runInput(evt));
+                
+                this.clearInput();
+            }
+            
+            becameActive() { this.outputView.becameActive(); }
+            becameInactive() { this.outputView.becameInactive(); }
+            
+            runInput(evt) {
+                evt.preventDefault();
+                let input = this.inputElem.value.trim();
+                this.clearInput();
+                if (input.length == 0) {
+                    return;
+                }
+                this.outputView.showInput(input);
+                let output = this.repl.run(input);
+                this.outputView.showResult(output)
+            }
+            
+            clearInput() {
+                this.inputElem.value = "";
+                this.inputElem.focus();
+            }
+        }
+        
+        class ProgramView extends PanelView {
+            constructor(id, outputView) {
+                super();
+                this.id = id;
+                this.outputView = outputView;
+                
+                this.inputFormElem = document.querySelector("#program form");
+                this.inputElem = this.inputFormElem.querySelector("textarea");
+                this.inputButtonElem = this.inputFormElem.querySelector("button");
+                
+                this.inputFormElem.addEventListener("submit", evt => this.runInput(evt));
+                this.inputButtonElem.addEventListener("click", evt => this.runInput(evt));
+                
+                this.inputElem.focus();
+            }
+            
+            becameActive() { this.outputView.becameActive(); }
+            becameInactive() { this.outputView.becameInactive(); }
+            
+            runInput(evt) {
+                evt.preventDefault();
+                let input = this.inputElem.value.trim();
+                if (input.length == 0) {
+                    return;
+                }
+                
+                this.outputView.clear();
+                this.outputView.showInput(`RUN ${input.split("\n").length} line(s)`);
+                let program = new Program(input);
+                program.output.forEach(line => {
+                    this.outputView.showResult(line);
+                });
+                this.outputView.showResult(Program.machineStateSummary(program.machine));
+            }
+        }
+        
+        window.assemblyApp = new App();
+    </script>
+    
+</body>
+</html>
