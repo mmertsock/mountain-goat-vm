@@ -1,0 +1,18 @@
+:root {
+	--text-normal: black;
+	--accent-normal: hsl(150, 78%, 37%);
+	--background-normal: white;
+	--background-hl-normal: hsl(0, 0%, 95%);
+	--background-hl-deep: hsl(0, 0%, 85%);
+	--border-normal: hsl(0, 0%, 85%);
+}
+
+body, input, textarea {
+	font-family: ui-monospace, monospace;
+	color: var(--text-normal);
+	background-color: var(--background-normal);
+}
+
+a {
+	color: var(--accent-normal);
+}

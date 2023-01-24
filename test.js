@@ -219,7 +219,7 @@ class UnitTest {
 
 class AssemblyTests {
     static datatypeTests() {
-        new UnitTest("assembly.DataType.parse", function() {
+        new UnitTest("DataType.parse", function() {
             let value = this.assertNoThrow(() => {
                 return Assembly.DataType.word.parse("0");
             }, "word: parse 0");
@@ -257,7 +257,7 @@ class AssemblyTests {
     }
     
     static instructionTests() {
-        new UnitTest("assembly.Instruction.setRegister", function() {
+        new UnitTest("Instruction.setRegister", function() {
             let machine = {
                 registers: [0, 0, 0]
             };
@@ -307,7 +307,7 @@ class AssemblyTests {
             this.assertElementsEqual(machine.registers, [1, 0, 0], label + "sets register 0");
         }).buildAndRun();
         
-        new UnitTest("assembly.Instruction.addRegisters", function() {
+        new UnitTest("Instruction.addRegisters", function() {
             let machine = {
                 registers: [3, 4, 5]
             };
