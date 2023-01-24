@@ -63,8 +63,6 @@ class UnitTest {
         this.body = body;
         this.expectations = 0;
         this.failures = 0;
-        this.visualizationElem = document.querySelector("#visualizations");
-        this.hiddenTestElem = document.querySelector("#domContainer");
     }
 
     get isOK() { return this.failures == 0; }
@@ -74,9 +72,6 @@ class UnitTest {
         return function(config, expect) {
             logTestHeader(this.name);
             
-            while (this.hiddenTestElem.firstChild) {
-                this.hiddenTestElem.removeChild(this.hiddenTestElem.firstChild);
-            }
             try {
                 this.body(config, expect);
             } catch(e) {

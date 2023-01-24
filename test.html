@@ -7,9 +7,14 @@
         import { uiReady } from './test.js';
         uiReady();
     </script>
+    <link rel="stylesheet" href="./across-space-and-time.css">
     <style>
+    :root {
+        --fg-success: hsl(80, 75%, 40%);
+        --fg-fail: hsl(20, 88%, 50%);
+    }
+        
     body {
-        font-family: monospace;
         font-size: 10pt;
     }
     #testOutput {
@@ -24,68 +29,20 @@
     }
     li.header {
         margin-top: 1.25em;
-        font-family: sans-serif;
+        font-family: system-ui, sans-serif;
         font-size: 12pt;
         font-weight: 500;
     }
     li.success {
-        color: hsl(80, 75%, 40%);
+        color: var(--fg-success);
         font-weight: 600;
     }
     li.warn {
-        color: hsl(20, 88%, 50%);
+        color: var(--fg-fail);
     }
     li.trace {
         font-size: 8pt;
         margin-top: 2.5pt;
-    }
-
-    .sparkline {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        justify-content: stretch;
-        align-items: end;
-        margin: 0.5em;
-        padding: 0;
-        list-style-type: none;
-        outline: 1px solid blue;
-        background-color: blue;
-        height: 50px;
-    }
-    .sparkline li {
-        flex-grow: 1;
-        display: flex;
-        margin: 0;
-        padding: 0;
-        list-style-type: none;
-        background-color: white;
-    }
-    .sparkline span {
-        display: none;
-    }
-
-    .sparkblob {
-        empty-cells: show;
-        border-collapse: collapse;
-    }
-    .sparkblob td span {
-        display: none;
-    }
-    .sparkblob td { 
-        border: 1px solid white;
-        width: 6px;
-        height: 6px;
-        background-color: #ddd;
-    }
-    .sparkblob td.highlighted {
-        background-color: blue;
-    }
-
-    canvas {
-        display: block;
-        width: 100%;
-        height: 100%;
     }
     </style>
 </head>
