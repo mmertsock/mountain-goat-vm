@@ -3,6 +3,7 @@
 	--accent-normal: hsl(150, 78%, 37%);
 	--background-normal: white;
 	--background-hl-normal: hsl(0, 0%, 95%);
+	--background-hl-normal-transparent: hsla(0, 0%, 0%, 0.05);
 	--background-hl-deep: hsl(0, 0%, 85%);
 	--border-normal: hsl(0, 0%, 85%);
 }

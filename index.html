@@ -38,10 +38,7 @@
             display: none;
         }
         
-        .mode-repl #repl {
-            display: block;
-        }
-        
+        .mode-repl #repl,
         .mode-program #program {
             display: block;
         }
@@ -55,7 +52,7 @@
         }
         
         .mode-program #output ol {
-            max-height: calc(50vw - 1em);
+            max-height: calc(50vh - 1em);
         }
         
         #output li {
@@ -100,7 +97,7 @@
         #program textarea {
             display: block;
             width: calc(100vw - 8em);
-            height: calc(50vw - 1em);
+            height: calc(50vh - 1em);
         }
         
         details section {
@@ -129,7 +126,7 @@
         
         code {
             border: 1px solid var(--border-normal);
-            background-color: var(--background-hl-normal);
+            background-color: var(--background-hl-normal-transparent);
             padding: 1pt 2pt;
             border-radius: 2pt;
         }
@@ -158,13 +155,6 @@
     <section id="output">
         <ol></ol>
     </section>
-    
-    <section id="program">
-        <form action="#">
-            <textarea placeholder="Code"></textarea>
-            <button>Run</button>
-        </form>
-    </section>
 
     <section id="repl">
         <div class="machine-state">
@@ -175,6 +165,13 @@
         <form action="#">
             <input type="text" placeholder="$"> 
             <button>Run</button>
+        </form>
+    </section>
+    
+    <section id="program">
+        <form action="#">
+            <textarea placeholder="Code"></textarea>
+            <button>Execute Program</button>
         </form>
     </section>
 
@@ -263,6 +260,10 @@
             }
             becameInactive() {
                 this.isActive = false;
+            }
+            
+            get isEmpty() {
+                return this.buffer.length == 0;
             }
             
             showInput(text) {
@@ -356,7 +357,12 @@
                 this.inputElem.focus();
             }
             
-            becameActive() { this.outputView.becameActive(); }
+            becameActive() {
+                this.outputView.becameActive();
+                if (this.outputView.isEmpty) {
+                    this.outputView.showResult("Ready.");
+                }
+            }
             becameInactive() { this.outputView.becameInactive(); }
             
             runInput(evt) {
