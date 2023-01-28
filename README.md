@@ -2,7 +2,7 @@
 
 A fake computer architecture and assembly language, with an interpreter hosted in JavaScript.
 
-This is a learning exercise discussed on <https://www.runningcode.net>.
+This is a learning exercise [discussed on my blog](https://www.runningcode.net/2023/01/27/mountain-goat-vm-1/).
 
 ## Repository contents
 

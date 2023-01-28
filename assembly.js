@@ -149,7 +149,7 @@ Instruction.setRegister = function(registerCount) {
         ],
         machineCode: Machine.prototype.setRegister
     });
-}
+};
 
 Instruction.addRegisters = new Instruction({
     id: "ADD",
