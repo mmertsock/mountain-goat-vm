@@ -229,30 +229,30 @@ class AssemblyTests {
                 return Assembly.DataType.word.parse("abc");
             }, "word: parse abc fails");
             
-            this.assertEqual(Assembly.DataType.register(5).max, 4, "register(5): Max register count = N - 1");
+            this.assertEqual(Assembly.DataType.register.max, Assembly.Machine.NUM_REGISTERS - 1, "register: Max register count = N - 1");
             
             value = this.assertNoThrow(() => {
-                return Assembly.DataType.register(5).parse("0");
-            }, "register(5): parse 0");
-            this.assertEqual(value, 0, "register(5): parsed 0");
+                return Assembly.DataType.register.parse("0");
+            }, "register parse 0");
+            this.assertEqual(value, 0, "register: parsed 0");
             
             value = this.assertNoThrow(() => {
-                return Assembly.DataType.register(5).parse("4");
-            }, "register(5): parse 4");
-            this.assertEqual(value, 4, "register(5): parsed 4");
+                return Assembly.DataType.register.parse(Assembly.Machine.NUM_REGISTERS - 1);
+            }, "register: parse max allowed");
+            this.assertEqual(value, Assembly.Machine.NUM_REGISTERS - 1, "register: parse max allowed");
             
             this.assertThrows(() => {
-                return Assembly.DataType.register(5).parse("abc");
-            }, "register(5): parse abc fails");
+                return Assembly.DataType.register.parse(Assembly.Machine.NUM_REGISTERS);
+            }, "register: parse NUM_REGISTERS fails");
             
             this.assertThrows(() => {
-                return Assembly.DataType.register(5).parse("abc");
-            }, "register(5): parse 5 fails");
+                return Assembly.DataType.register.parse("abc");
+            }, "register: parse abc fails");
         }).buildAndRun();
     }
     
     static instructionTests() {
-        new UnitTest("Instruction.setRegister", function() {
+        new UnitTest("AssemblyInstruction.setRegister", function() {
             let machine = {
                 registers: [0, 0, 0]
             };
@@ -302,7 +302,7 @@ class AssemblyTests {
             this.assertElementsEqual(machine.registers, [1, 0, 0], label + "sets register 0");
         }).buildAndRun();
         
-        new UnitTest("Instruction.addRegisters", function() {
+        new UnitTest("AssemblyInstruction.addRegisters", function() {
             let machine = {
                 registers: [3, 4, 5]
             };

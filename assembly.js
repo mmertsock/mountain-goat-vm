@@ -17,24 +17,24 @@ export class Machine {
     static WORD_RANGE = 0x1 << (8 * Uint16Array.BYTES_PER_ELEMENT);
     /// If `pc` is set to this address, execution immediately halts.
     static HALT_ADDR = 0x0;
+    /// Total count of registers.
+    static NUM_REGISTERS = 2;
     
     constructor() {
-        this.registers = [0, 0];
-        this.instructions = [
+        this.registers = new Array(Machine.NUM_REGISTERS).fill(0);
+        this.assemblyLanguage = new AssemblyLanguage([
             AssemblyInstruction.setRegister(this.registers.length),
             AssemblyInstruction.addRegisters
-        ];
+        ]);
+    }
+    
+    run() {
+        if (this.pc == Machine.HALT_ADDR) {
+            return;
+        }
     }
     
     // Instruction cycle
-    
-    getInstruction(keyword) {
-        let instruction = this.instructions.find(i => i.keyword == keyword);
-        if (!instruction) {
-            throw Error.machine.unknownInstruction;
-        }
-        return instruction;
-    }
     
     execute(instruction, input) {
         instruction.execute(input, this);
@@ -77,13 +77,11 @@ export class DataType {
     
     // Enumerated DataType instances.
     
-    static register(registerCount) {
-        return new DataType({
-            name: "register",
-            min: 0,
-            max: registerCount - 1
-        });
-    }
+    static register = new DataType({
+        name: "register",
+        min: 0,
+        max: Machine.NUM_REGISTERS - 1
+    });
     
     static address = new DataType({
         name: "address",
@@ -109,6 +107,22 @@ export class OperandSpec {
     
     get helpText() {
         return `${this.placeholder}: ${this.dataType.helpText}`;
+    }
+}
+
+/// Specifications for instructions and other details of the Machine's assembly language.
+export class AssemblyLanguage {
+    constructor(instructionSpecs) {
+        // Array of AssemblyInstruction:
+        this.instructionSpecs = instructionSpecs;
+    }
+    
+    getInstruction(keyword) {
+        let instruction = this.instructionSpecs.find(i => i.keyword == keyword);
+        if (!instruction) {
+            throw Error.machine.unknownInstruction;
+        }
+        return instruction;
     }
 }
 
@@ -157,7 +171,7 @@ export class AssemblyInstruction {
             operands: [
                 new OperandSpec({
                     placeholder: "n",
-                    dataType: DataType.register(registerCount)
+                    dataType: DataType.register
                 }),
                 new OperandSpec({
                     placeholder: "i",
@@ -208,7 +222,7 @@ export class Program {
         try {
             this.input.forEach(line => {
                 let [keyword, tokens] = Program.tokenize(line);
-                let instruction = this.machine.getInstruction(keyword);
+                let instruction = this.machine.assemblyLanguage.getInstruction(keyword);
                 this.machine.execute(instruction, tokens);
             });
             this.appendOutput("HALT");
@@ -232,7 +246,7 @@ export class REPL {
         let lines = [
             `I am running on a ${Machine.WORD_SIZE * 8}-bit virtual machine. Instructions:`,
         ];
-        for (const instruction of this.machine.instructions) {
+        for (const instruction of this.machine.assemblyLanguage.instructionSpecs) {
             instruction.helpText.forEach((line, index) => {
                 lines.push((index == 0 ? "# " : "") + line);
             });
@@ -252,7 +266,7 @@ export class REPL {
                 return this.helpText;
             }
             
-            let instruction = this.machine.getInstruction(keyword);
+            let instruction = this.machine.assemblyLanguage.getInstruction(keyword);
             this.machine.execute(instruction, tokens);
             return Program.machineStateSummary(this.machine);
         } catch (e) {
