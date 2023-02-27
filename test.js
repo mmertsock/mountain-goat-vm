@@ -256,46 +256,46 @@ class AssemblyTests {
             let machine = {
                 registers: [0, 0, 0]
             };
-            let sut = Assembly.Instruction.setRegister(3);
+            let sut = Assembly.AssemblyInstruction.setRegister(3);
             let label = "";
             
-            label = "SET (no tokens)";
+            label = "SET (no tokens): ";
             this.assertThrows(() => {
                 sut.execute([], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET 0";
+            label = "SET 0: ";
             this.assertThrows(() => {
                 sut.execute(["0"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET 0 1 2";
+            label = "SET 0 1 2: ";
             this.assertThrows(() => {
                 sut.execute(["0", "1", "2"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET a 1";
+            label = "SET a 1: ";
             this.assertThrows(() => {
                 sut.execute(["a", "1"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET 0 a";
+            label = "SET 0 a: ";
             this.assertThrows(() => {
                 sut.execute(["0", "a"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET 3 1";
+            label = "SET 3 1: ";
             this.assertThrows(() => {
                 sut.execute(["3", "1"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
             
-            label = "SET 0 1";
+            label = "SET 0 1: ";
             this.assertNoThrow(() => {
                 sut.execute(["0", "1"], machine);
             }, label + "execute");
@@ -306,27 +306,27 @@ class AssemblyTests {
             let machine = {
                 registers: [3, 4, 5]
             };
-            let sut = Assembly.Instruction.addRegisters;
+            let sut = Assembly.AssemblyInstruction.addRegisters;
             let label = "";
             
-            label = "ADD 0";
+            label = "ADD 0: ";
             this.assertThrows(() => {
                 sut.execute(["0"], machine);
             }, label + "invalid");
             this.assertElementsEqual(machine.registers, [3, 4, 5], label + "no state change");
             
-            label = "ADD";
+            label = "ADD: ";
             this.assertNoThrow(() => {
                 sut.execute([], machine);
             }, label + "execute");
             this.assertElementsEqual(machine.registers, [7, 4, 5], label + "sets register 0");
         }).buildAndRun();
     }
-} // end class assembly
+} // end class AssemblyTests
 
 TestSession.current = new TestSession([
     AssemblyTests.datatypeTests,
-    AssemblyTests.instructionTests
+    AssemblyTests.instructionTests,
 ]);
 
 export async function uiReady() {

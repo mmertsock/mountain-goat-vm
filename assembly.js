@@ -1,29 +1,35 @@
 "use-strict";
 
 export class Error {
+    static machine = {
+        unknownInstruction: "Unknown instruction",
+        invalidInputType: "Invalid input type",
+        invalidInstructionFormat: "Invalid instruction format",
+        inputOutsideRange: "Input outside valid range",
+    };
 }
 
-Error.machine = {
-    unknownInstruction: "Unknown instruction",
-    invalidInputType: "Invalid input type",
-    invalidInstructionFormat: "Invalid instruction format",
-    inputOutsideRange: "Input outside valid range",
-};
-
-// A specific instance of a virtual machine running and executing code.
+/// A specific instance of a virtual machine running and executing code.
 export class Machine {
+    /// Size of one word, in bytes, for instructions and addresses in memory.
+    static WORD_SIZE = Uint16Array.BYTES_PER_ELEMENT;
+    /// Max unsigned value of one word, and size of memory in bytes.
+    static WORD_RANGE = 0x1 << (8 * Uint16Array.BYTES_PER_ELEMENT);
+    /// If `pc` is set to this address, execution immediately halts.
+    static HALT_ADDR = 0x0;
+    
     constructor() {
         this.registers = [0, 0];
         this.instructions = [
-            Instruction.setRegister(this.registers.length),
-            Instruction.addRegisters
+            AssemblyInstruction.setRegister(this.registers.length),
+            AssemblyInstruction.addRegisters
         ];
     }
     
     // Instruction cycle
     
-    getInstruction(id) {
-        let instruction = this.instructions.find(i => i.id == id);
+    getInstruction(keyword) {
+        let instruction = this.instructions.find(i => i.keyword == keyword);
         if (!instruction) {
             throw Error.machine.unknownInstruction;
         }
@@ -34,7 +40,7 @@ export class Machine {
         instruction.execute(input, this);
     }
     
-    // Machine code implementation
+    // Microcode implementation
     
     setRegister(rIndex, value) {
         this.registers[rIndex] = value;
@@ -46,7 +52,7 @@ export class Machine {
     }
 }
 
-// An instance of DataType describes a specific format of data used in registers or instruction operands.
+/// An instance of DataType describes a specific format of data used in registers or instruction operands.
 export class DataType {
     constructor(config) {
         this.name = config.name;
@@ -68,22 +74,33 @@ export class DataType {
         }
         return integer;
     }
-}
-DataType.register = function(registerCount) {
-    return new DataType({
-        name: "register",
-        min: 0,
-        max: registerCount - 1
+    
+    // Enumerated DataType instances.
+    
+    static register(registerCount) {
+        return new DataType({
+            name: "register",
+            min: 0,
+            max: registerCount - 1
+        });
+    }
+    
+    static address = new DataType({
+        name: "address",
+        width: Machine.WORD_SIZE,
+        min: 0x0,
+        max: Machine.WORD_RANGE
     });
-};
-DataType.word = new DataType({
-    name: "word",
-    width: Int16Array.BYTES_PER_ELEMENT,
-    min: 0,
-    max: 65535
-});
+    
+    static word = new DataType({
+        name: "word",
+        width: Machine.WORD_SIZE,
+        min: 0,
+        max: Machine.WORD_RANGE
+    });
+} // end class DataType.
 
-// Specifications for a single operand in an instruction.
+/// Specifications for a single operand in an assembly instruction, and how to encode/decode its value within a machine code instruction.
 export class OperandSpec {
     constructor(config) {
         this.placeholder = config.placeholder;
@@ -95,15 +112,15 @@ export class OperandSpec {
     }
 }
 
-// An instance of Instruction describes the specifications and behavior of specific type of machine instruction.
-export class Instruction {
+/// An abstract specification of the behavior of a specific assembly language instruction.
+export class AssemblyInstruction {
     constructor(config) {
-        this.id = config.id;
-        this.description = config.description;
+        this.keyword = config.keyword;
         // operands = array of OperandSpec:
         this.operands = config.operands;
-        // machineCode = Machine.prototype.someFunction
-        this.machineCode = config.machineCode;
+        // microcode = Machine.prototype.someFunction:
+        this.microcode = config.microcode;
+        this.description = config.description;
     }
     
     // Executes this instruction in `machine` with the given tokenized operand text.
@@ -114,16 +131,16 @@ export class Instruction {
         let values = this.operands.map((spec, index) => {
             return spec.dataType.parse(tokens[index]);
         });
-        this.machineCode.apply(machine, values);
+        this.microcode.apply(machine, values);
     }
     
     get helpText() {
-        let exampleTokens = [this.id];
+        let exampleTokens = [this.keyword];
         for (const spec of this.operands) {
             exampleTokens.push(spec.placeholder);
         }
         let lines = [
-            `${this.id}: ${this.description}`,
+            `${this.keyword}: ${this.description}`,
             `Example: ${exampleTokens.join(" ")}`
         ];
         for (const spec of this.operands) {
@@ -131,34 +148,38 @@ export class Instruction {
         }
         return lines;
     }
-}
-
-Instruction.setRegister = function(registerCount) {
-    return new Instruction({
-        id: "SET",
-        description: "Sets $Rn to integer value i",
-        operands: [
-            new OperandSpec({
-                placeholder: "n",
-                dataType: DataType.register(registerCount)
-            }),
-            new OperandSpec({
-                placeholder: "i",
-                dataType: DataType.word
-            })
-        ],
-        machineCode: Machine.prototype.setRegister
+    
+    // Enumerated AssemblyInstruction instances.
+    
+    static setRegister(registerCount) {
+        return new AssemblyInstruction({
+            keyword: "SET",
+            operands: [
+                new OperandSpec({
+                    placeholder: "n",
+                    dataType: DataType.register(registerCount)
+                }),
+                new OperandSpec({
+                    placeholder: "i",
+                    dataType: DataType.word
+                })
+            ],
+            microcode: Machine.prototype.setRegister,
+            description: "Sets $Rn to integer value i",
+        });
+    }
+    
+    static addRegisters = new AssemblyInstruction({
+        keyword: "ADD",
+        operands: [],
+        microcode: Machine.prototype.addRegisters,
+        description: "Sets $R0 = $R0 + $R1"
     });
-};
+} // end class AssemblyInstruction.
 
-Instruction.addRegisters = new Instruction({
-    id: "ADD",
-    description: "Sets $R0 = $R0 + $R1",
-    operands: [],
-    machineCode: Machine.prototype.addRegisters
-});
-
-// An instance of Program is a single execution of a block of code. Each Program instance creates a new Machine and runs the given code on that machine, leaving the machine in its final state after execution completes.
+/// An instance of Program is a single execution of a block of code.
+/// 
+/// Each Program instance creates a new Machine and runs the given code on that machine, leaving the machine in its final state after execution completes.
 export class Program {
     static tokenize(input) {
         if (!input) {
@@ -166,8 +187,8 @@ export class Program {
         }
         input = input.toUpperCase();
         let tokens = input.split(" ");
-        let instructionID = tokens.shift();
-        return [instructionID, tokens];
+        let keyword = tokens.shift();
+        return [keyword, tokens];
     }
     
     static machineStateSummary(machine) {
@@ -186,8 +207,8 @@ export class Program {
     run() {
         try {
             this.input.forEach(line => {
-                let [instructionID, tokens] = Program.tokenize(line);
-                let instruction = this.machine.getInstruction(instructionID);
+                let [keyword, tokens] = Program.tokenize(line);
+                let instruction = this.machine.getInstruction(keyword);
                 this.machine.execute(instruction, tokens);
             });
             this.appendOutput("HALT");
@@ -201,22 +222,22 @@ export class Program {
     }
 }
 
-// Maintains a single Machine instance, upon which individual instructions can be ran interactively. Exposes the current state of the machine for inspection and manipulation after each instruction.
+/// Maintains a single Machine instance, upon which individual instructions can be ran interactively. Exposes the current state of the machine for inspection and manipulation after each instruction.
 export class REPL {
     constructor() {
         this.machine = new Machine();
     }
     
     get helpText() {
-        let lines = [];
+        let lines = [
+            `I am running on a ${Machine.WORD_SIZE * 8}-bit virtual machine. Instructions:`,
+        ];
         for (const instruction of this.machine.instructions) {
-            if (lines.length > 0) {
-                lines.push("");
-            }
-            for (const line of instruction.helpText) {
-                lines.push(line);
-            }
+            instruction.helpText.forEach((line, index) => {
+                lines.push((index == 0 ? "# " : "") + line);
+            });
         }
+        
         return lines.join("\n");
     };
     
@@ -226,12 +247,12 @@ export class REPL {
     
     run(input) {
         try {
-            let [instructionID, tokens] = Program.tokenize(input);
-            if (instructionID == "HELP") {
+            let [keyword, tokens] = Program.tokenize(input);
+            if (keyword == "HELP") {
                 return this.helpText;
             }
             
-            let instruction = this.machine.getInstruction(instructionID);
+            let instruction = this.machine.getInstruction(keyword);
             this.machine.execute(instruction, tokens);
             return Program.machineStateSummary(this.machine);
         } catch (e) {
