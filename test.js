@@ -252,10 +252,15 @@ class AssemblyTests {
     }
     
     static instructionTests() {
+        let StubMachine = class {
+            registers;
+            constructor(registers) {
+                this.registers = registers;
+            }
+        };
+        
         new UnitTest("AssemblyInstruction.setRegister", function() {
-            let machine = {
-                registers: [0, 0, 0]
-            };
+            let machine = new StubMachine([0, 0, 0]);
             let sut = Assembly.AssemblyInstruction.setRegister(3);
             let label = "";
             
@@ -303,9 +308,7 @@ class AssemblyTests {
         }).buildAndRun();
         
         new UnitTest("AssemblyInstruction.addRegisters", function() {
-            let machine = {
-                registers: [3, 4, 5]
-            };
+            let machine = new StubMachine([3, 4, 5]);
             let sut = Assembly.AssemblyInstruction.addRegisters;
             let label = "";
             

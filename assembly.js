@@ -20,6 +20,10 @@ export class Machine {
     /// Total count of registers.
     static NUM_REGISTERS = 2;
     
+    registers; // Array of values
+    assemblyLanguage; // AssemblyLanguage
+    instructions = []; // array of AssemblyInstruction
+    
     constructor() {
         this.registers = new Array(Machine.NUM_REGISTERS).fill(0);
         this.assemblyLanguage = new AssemblyLanguage([
@@ -32,6 +36,12 @@ export class Machine {
         if (this.pc == Machine.HALT_ADDR) {
             return;
         }
+    }
+    
+    get stateSummary() {
+        return this.registers
+            .map(r => `[${r}]`)
+            .join(" ");
     }
     
     // Instruction cycle
@@ -54,6 +64,10 @@ export class Machine {
 
 /// An instance of DataType describes a specific format of data used in registers or instruction operands.
 export class DataType {
+    name;
+    min;
+    max;
+    
     constructor(config) {
         this.name = config.name;
         this.min = config.min;
@@ -98,22 +112,11 @@ export class DataType {
     });
 } // end class DataType.
 
-/// Specifications for a single operand in an assembly instruction, and how to encode/decode its value within a machine code instruction.
-export class OperandSpec {
-    constructor(config) {
-        this.placeholder = config.placeholder;
-        this.dataType = config.dataType;
-    }
-    
-    get helpText() {
-        return `${this.placeholder}: ${this.dataType.helpText}`;
-    }
-}
-
 /// Specifications for instructions and other details of the Machine's assembly language.
 export class AssemblyLanguage {
+    instructionSpecs; // Array of AssemblyInstruction
+    
     constructor(instructionSpecs) {
-        // Array of AssemblyInstruction:
         this.instructionSpecs = instructionSpecs;
     }
     
@@ -126,18 +129,36 @@ export class AssemblyLanguage {
     }
 }
 
+/// Specifications for a single operand in an assembly instruction, and how to encode/decode its value within a machine code instruction.
+export class OperandSpec {
+    placeholder;
+    dataType;
+    
+    constructor(config) {
+        this.placeholder = config.placeholder;
+        this.dataType = config.dataType;
+    }
+    
+    get helpText() {
+        return `${this.placeholder}: ${this.dataType.helpText}`;
+    }
+}
+
 /// An abstract specification of the behavior of a specific assembly language instruction.
 export class AssemblyInstruction {
+    keyword;
+    operands; // array of OperandSpec
+    microcode; // Machine.prototype.someFunction
+    description;
+    
     constructor(config) {
         this.keyword = config.keyword;
-        // operands = array of OperandSpec:
         this.operands = config.operands;
-        // microcode = Machine.prototype.someFunction:
         this.microcode = config.microcode;
         this.description = config.description;
     }
     
-    // Executes this instruction in `machine` with the given tokenized operand text.
+    /// Executes this instruction in `machine` with the given tokenized operand text.
     execute(tokens, machine) {
         if (tokens.length != this.operands.length) {
             throw Error.machine.invalidInstructionFormat;
@@ -205,12 +226,6 @@ export class Program {
         return [keyword, tokens];
     }
     
-    static machineStateSummary(machine) {
-        return machine.registers
-            .map(r => `[${r}]`)
-            .join(" ");
-    }
-    
     constructor(text) {
         this.machine = new Machine();
         this.input = text.split("\n");
@@ -253,7 +268,7 @@ export class REPL {
         }
         
         return lines.join("\n");
-    };
+    }
     
     errorMessage(text) {
         return `ERROR: ${text}.`;
@@ -268,7 +283,7 @@ export class REPL {
             
             let instruction = this.machine.assemblyLanguage.getInstruction(keyword);
             this.machine.execute(instruction, tokens);
-            return Program.machineStateSummary(this.machine);
+            return this.machine.stateSummary;
         } catch (e) {
             return this.errorMessage(e);
         }
