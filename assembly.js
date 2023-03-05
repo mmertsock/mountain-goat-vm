@@ -23,11 +23,11 @@ export class Machine {
     
     assemblyLanguage; // AssemblyLanguage
     registers; // Array of values
-    #statements = []; // array of AssemblyStatement
+    #statements; // array of AssemblyStatement
     
     /// Index to the `statements` array, indicating the next instruction to execute.
     /// A value outside of the statements array's bounds will halt the machine, in this case the `halting` property will be true.
-    #pc = Machine.PC_HALT;
+    #pc;
     
     constructor() {
         this.registers = new Array(Machine.NUM_REGISTERS).fill(0);
@@ -35,15 +35,8 @@ export class Machine {
             AssemblyInstruction.setRegister(this.registers.length),
             AssemblyInstruction.addRegisters
         ]);
-    }
-    
-    get instructionCount() {
-        return this.#statements.length;
-    }
-    
-    /// True if `pc` points to an invalid instruction index, false if `pc` points to a valid instruction index.
-    get halting() {
-        return this.#statements.length == 0;
+        this.#statements = [];
+        this.#pc = 0;
     }
     
     /// Appends AssemblyStatements to the end of the current set of stored statements.
@@ -52,18 +45,47 @@ export class Machine {
         this.#statements = this.#statements.concat(statements);
     }
     
+    get instructionCount() {
+        return this.#statements.length;
+    }
+    
+    /// True if `pc` points to an invalid instruction index, false if `pc` points to a valid instruction index.
+    get halting() {
+        return this.#pc < 0 || this.#pc >= this.#statements.length;
+    }
+    
+    get pc() {
+        return this.#pc;
+    }
+    
+    /// The AssemblyStatement currently indicated by `pc`.
+    /// If currently in `halting` state, returns null.
+    get nextInstruction() {
+        if (this.halting) {
+            return null;
+        } else {
+            return this.#statements[this.#pc];
+        }
+    }
+    
     /// Executes the single next instruction indicated by `pc` and then returns immediately. Does nothing if the machine is currently `halting`.
     step() {
+        let next = this.nextInstruction;
+        if (!next) { return; }
         
+        this.#pc = this.#pc + 1;
+        if (next.instruction) {
+            next.instruction.microcode.apply(this, next.operands);
+        }
     }
     
     /// Begins execution at the next instruction indicated by `pc`.
     /// Execution halts when pc no longer points to a valid instruction index (`halting` is true).
     run() {
         // TODO: add a max-cycles argument, to give a chance to interrupt infinite loops?
-        // while (!this.halting) {
-        //     this.step();
-        // }
+        while (!this.halting) {
+            this.step();
+        }
     }
     
     get stateSummary() {
@@ -72,18 +94,16 @@ export class Machine {
             .join(" ");
     }
     
-    // Instruction cycle
-    
-    get pc() {
-        return this.#pc;
-    }
-    
     // TODO: instead, REPL should append one instruction then run.
     execute(instruction, input) {
         instruction.execute(input, this);
     }
     
     // Microcode implementation
+    
+    setPC(value) {
+        this.#pc = value;
+    }
     
     setRegister(rIndex, value) {
         this.registers[rIndex] = value;
@@ -176,14 +196,11 @@ export class AssemblyLanguage {
                 throw Error.machine.invalidInstructionFormat;
             }
             let operands = instruction.operands.map((spec, index) => {
-                return {
-                    text: line.operands[index],
-                    value: spec.dataType.parse(line.operands[index])
-                };
+                return spec.dataType.parse(line.operands[index]);
             });
-            return new AssemblyStatement(instruction, operands, line.comment);
+            return new AssemblyStatement(instruction, operands, text, line.comment);
         } else {
-            return new AssemblyStatement(null, [], line.comment);
+            return new AssemblyStatement(null, [], text, line.comment);
         }
     }
 }
@@ -304,14 +321,17 @@ export class AssemblyInstruction {
 export class AssemblyStatement {
     /// AssemblyInstruction. Null indicates no-op, such as a comment line.
     instruction;
-    /// Array of objects: `{ text, value }`.
+    /// Array of operand values, parsed to correct data types, not text input.
     operands;
+    /// The original raw text of the statement.
+    text;
     /// Null if no comment, otherwise a single line of text, no comment delimiter included.
     comment;
     
-    constructor(instruction, operands, comment) {
+    constructor(instruction, operands, text, comment) {
         this.instruction = instruction;
         this.operands = operands;
+        this.text = text || "";
         this.comment = (!!comment && comment.length > 0) ? comment : null;
     }
 }

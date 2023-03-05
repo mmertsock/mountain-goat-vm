@@ -401,8 +401,8 @@ class AssemblyLanguageTests {
             
             statement = language.assembleStatement("set 1 1234 # set 1234");
             this.assertEqual(statement?.instruction, setInstruction, "SET: instruction");
-            this.assertElementsEqual(statement?.operands.map(item => item.text), ["1", "1234"], "SET: operand text");
-            this.assertElementsEqual(statement?.operands.map(item => item.value), [1, 1234], "ADD: operand values");
+            this.assertElementsEqual(statement?.operands, [1, 1234], "SET: operand values");
+            this.assertEqual(statement?.text, "set 1 1234 # set 1234", "SET: text");
             this.assertEqual(statement?.comment, "set 1234", "SET: with comment");
             
             this.assertThrows(() => language.assembleStatement("SET"), "SET: no operands");
@@ -425,6 +425,7 @@ class MachineTests {
             this.assertEqual(machine.registers.filter(r => r == 0).length, Machine.NUM_REGISTERS, "All registers initialized to zero");
             this.assertEqual(machine.instructionCount, 0, "Initialized with no instructions");
             this.assertTrue(machine.halting, "Will always halt immediately after init with no instructions");
+            this.assertEqual(machine.nextInstruction, null, "nextInstruction always null after init with no instructions");
         }).buildAndRun();
     }
      
@@ -434,41 +435,111 @@ class MachineTests {
             let setInstruction = machine.assemblyLanguage.getInstruction("SET");
             let addInstruction = machine.assemblyLanguage.getInstruction("ADD");
             let statements = [
-                new AssemblyStatement(setInstruction, [{ value: 0 }, { value: 5 }], null),
-                new AssemblyStatement(setInstruction, [{ value: 1 }, { value: 10 }], null),
-                new AssemblyStatement(addInstruction, [], null),
-                new AssemblyStatement(addInstruction, [], null)
+                new AssemblyStatement(setInstruction, [0, 5], "SET 0 5", null),
+                new AssemblyStatement(setInstruction, [1, 10], "SET 1 10", null),
+                new AssemblyStatement(addInstruction, [], "ADD", null),
+                new AssemblyStatement(addInstruction, [], "ADD", null)
             ];
             
-            this.assertEqual(machine.pc, Machine.PC_HALT, "init PC");
+            this.assertTrue(machine.halting, "init: halting");
+            this.assertEqual(machine.nextInstruction, null, "init: nextInstruction null");
+            let pc0 = machine.pc;
             
             machine.append([]);
             this.assertEqual(machine.instructionCount, 0, "Append no statements: count == 0");
             this.assertTrue(machine.halting, "Append no statements: still halting");
-            this.assertEqual(machine.pc, Machine.PC_HALT, "Append no statements: PC unchanged");
+            this.assertEqual(machine.pc, pc0, "Append no statements: PC unchanged");
+            this.assertEqual(machine.nextInstruction, null, "Append no statements: nextInstruction null");
             
             machine.append([statements[0]]);
             this.assertEqual(machine.instructionCount, 1, "Append 1 statement: count == 1");
             this.assertFalse(machine.halting, "Append 1 statement: not halting");
-            this.assertEqual(machine.pc, Machine.PC_HALT, "Append 1 statement: PC unchanged");
+            this.assertEqual(machine.pc, pc0, "Append 1 statement: PC unchanged");
+            this.assertEqual(machine.nextInstruction, statements[0], "Append 1 statement: nextInstruction");
             
             machine.append([statements[1], statements[2]]);
             this.assertEqual(machine.instructionCount, 3, "Append more statements: count");
             this.assertFalse(machine.halting, "Append more statements: not halting");
-            this.assertEqual(machine.pc, Machine.PC_HALT, "Append more statements: PC unchanged");
+            this.assertEqual(machine.pc, pc0, "Append more statements: PC unchanged");
+            this.assertEqual(machine.nextInstruction, statements[0], "Append more statements: nextInstruction unchanged");
             
-            // TODO: modify machine.pc, append 1 more statement, check PC unchanged but not PC_HALT
+            let pc1 = machine.pc + 1;
+            machine.setPC(pc1);
+            this.assertEqual(machine.nextInstruction, statements[1], "Modify PC: nextInstruction updated");
+            machine.append([statements[3]]);
+            this.assertEqual(machine.pc, pc1, "Append with PC modified: PC not updated");
+            
+            machine.setPC(machine.instructionCount);
+            this.assertTrue(machine.halting, "Move PC to end: halting");
+            this.assertEqual(machine.nextInstruction, null, "Move PC to end: nextInstruction null");
         }).buildAndRun();
     }
     
     static stepTests() {
-        new UnitTest("Machine.step", function() {
-            // Execute the single next instruction and exit immediately, even if not in a halting state.
-            // Useful for directly unit testing small details of instruction execution. Treat run() as more like an integration test compared to step().
+        new UnitTest("Machine.step: sequential", function() {
+            let machine = new Machine();
+            let setInstruction = machine.assemblyLanguage.getInstruction("SET");
+            let addInstruction = machine.assemblyLanguage.getInstruction("ADD");
+            let statements = [
+                new AssemblyStatement(setInstruction, [1, 10], "SET 1 10", null),
+                new AssemblyStatement(addInstruction, [], "ADD", null)
+            ];
             
-            // Step with no instructions, with instructions and PC == 0, with instructions and PC in the middle, with instructions but PC is halting
+            let pc = machine.pc;
+            machine.step();
+            this.assertEqual(machine.pc, pc, "step with no statements loaded: PC unchanged");
+            this.assertTrue(machine.halting, "step with no statements loaded: halting");
             
-            // Testing control flow:
+            console.log("~~~~ step with 1 statement loaded ~~~~");
+            machine.append([statements[0]]);
+            machine.step();
+            this.assertEqual(machine.registers[1], 10, "step with 1 statement loaded: executed statement");
+            this.assertTrue(machine.halting, "step with 1 statement loaded: halting");
+            
+            console.log("~~~~ step after 1 statement executed ~~~~");
+            machine.step();
+            this.assertTrue(machine.halting, "step after 1 statement executed: halting");
+            
+            machine.append([statements[1]]);
+            machine.step();
+            this.assertEqual(machine.registers[0], 10, "step second statement: executed ADD");
+            this.assertTrue(machine.halting, "step second statement: halting");
+            
+            machine.step();
+            this.assertEqual(machine.registers[0], 10, "step after second statement: noop");
+            this.assertTrue(machine.halting, "step after second statement: halting");
+            
+            // Manually start over with instructions still loaded.
+            machine.setPC(pc);
+            machine.setRegister(1, 0);
+            
+            machine.step();
+            this.assertEqual(machine.registers[1], 10, "step after reset PC: executed SET");
+            this.assertFalse(machine.halting, "step after reset PC: not halting");
+            machine.step();
+            this.assertEqual(machine.registers[0], 20, "second step after reset PC: executed AD");
+            this.assertTrue(machine.halting, "second step after reset PC: halting");
+        }).buildAndRun();
+        
+        new UnitTest("Machine.step: noops", function() {
+            let machine = new Machine();
+            machine.append([new AssemblyStatement(null, [], "# noop", "noop")]);
+            this.assertEqual(machine.instructionCount, 1, "Noop included in instructionCount");
+            this.assertFalse(machine.halting, "append noop: ready");
+            
+            let pc0 = machine.pc;
+            machine.step();
+            this.assertTrue(machine.halting, "step after noop: halting");
+            this.assertEqual(machine.pc, pc0 + 1, "step after noop: PC incremented");
+            
+            let setInstruction = machine.assemblyLanguage.getInstruction("SET");
+            machine.append([new AssemblyStatement(setInstruction, [1, 10], "SET 1 10", null)]);
+            machine.step();
+            this.assertEqual(machine.registers[1], 10, "SET after noop step: SET executed");
+            this.assertEqual(machine.pc, pc0 + 2, "SET after noop step: PC incremented");
+        }).buildAndRun();
+        
+        new UnitTest("Machine.step: control flow", function() {
             // Step a single statement, it doesn't set the PC. Increments the PC normally.
             // Step a single statement, it sets the PC. Respects that, doesn't increment the PC.
         }).buildAndRun();
@@ -476,10 +547,36 @@ class MachineTests {
     
     static runTests() {
         new UnitTest("Machine.run", function() {
-            // Degenerate path: run with no statements
-            // Happy path: run a couple of basic statements then halts
-            // Ignores noops/comment lines without problem
-            // Control flow: statement changes PC, next statement the expected one, sets PC to a halting state, halts.
+            let machine = new Machine();
+            let setInstruction = machine.assemblyLanguage.getInstruction("SET");
+            let addInstruction = machine.assemblyLanguage.getInstruction("ADD");
+            let statements = [
+                new AssemblyStatement(setInstruction, [1, 10], "SET 1 10", null),
+                new AssemblyStatement(null, [], "# noop", "noop"),
+                new AssemblyStatement(addInstruction, [], "ADD", null)
+            ];
+            
+            let pc0 = machine.pc;
+            machine.run();
+            this.assertEqual(machine.pc, pc0, "run with no statements: PC unchanged");
+            this.assertTrue(machine.halting, "run with no statements: halting");
+            
+            machine.append(statements);
+            this.assertEqual(machine.instructionCount, 3, "append 3 statements");
+            this.assertFalse(machine.halting, "append 3 statements: ready");
+            
+            machine.run();
+            this.assertElementsEqual([machine.registers[0], machine.registers[1]], [10, 10], "Statements executed, registers updated");
+            this.assertTrue(machine.halting, "run 3 statements: halting");
+            
+            // Manually start over with instructions still loaded.
+            machine.setPC(1);
+            this.assertFalse(machine.halting, "Reset PC: not halting");
+            machine.run();
+            this.assertElementsEqual([machine.registers[0], machine.registers[1]], [20, 10], "Run after reset PC: statements executed, registers updated");
+            this.assertTrue(machine.halting, "Run after reset PC: halting");
+            
+            // TODO: Control flow: statement changes PC, next statement the expected one, sets PC to a halting state, halts.
         }).buildAndRun();
     }
     
