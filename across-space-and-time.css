@@ -1,4 +1,5 @@
 :root {
+	color-scheme: light dark;
 	--text-normal: black;
 	--accent-normal: hsl(150, 78%, 37%);
 	--background-normal: white;
@@ -6,6 +7,17 @@
 	--background-hl-normal-transparent: hsla(0, 0%, 0%, 0.05);
 	--background-hl-deep: hsl(0, 0%, 85%);
 	--border-normal: hsl(0, 0%, 85%);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--text-normal: white;
+		--background-normal: black;
+		--background-hl-normal: hsl(0, 0%, 25%);
+		--background-hl-normal-transparent: hsla(0, 0%, 100%, 0.05);
+		--background-hl-deep: hsl(0, 0%, 15%);
+		--border-normal: hsl(0, 0%, 15%);
+	}
 }
 
 body, input, textarea {

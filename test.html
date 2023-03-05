@@ -13,7 +13,13 @@
         --fg-success: hsl(80, 75%, 40%);
         --fg-fail: hsl(20, 88%, 50%);
     }
-        
+    
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --fg-success: hsl(80, 75%, 50%);
+        }
+    }
+    
     body {
         font-size: 10pt;
     }

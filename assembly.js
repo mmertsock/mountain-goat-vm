@@ -15,14 +15,19 @@ export class Machine {
     static WORD_SIZE = Uint16Array.BYTES_PER_ELEMENT;
     /// Max unsigned value of one word, and size of memory in bytes.
     static WORD_RANGE = 0x1 << (8 * Uint16Array.BYTES_PER_ELEMENT);
-    /// If `pc` is set to this address, execution immediately halts.
-    static HALT_ADDR = 0x0;
-    /// Total count of registers.
+    /// Total count of general-purpose registers.
     static NUM_REGISTERS = 2;
+    /// A value for the PC register that is guaranteed to halt execution.
+    /// Note that the machine halts with _any_ PC value outside the range of available statements; `PC_HALT` is just a constant that's guaranteed to work.
+    static PC_HALT = -1;
     
-    registers; // Array of values
     assemblyLanguage; // AssemblyLanguage
-    instructions = []; // array of AssemblyInstruction
+    registers; // Array of values
+    #statements = []; // array of AssemblyStatement
+    
+    /// Index to the `statements` array, indicating the next instruction to execute.
+    /// A value outside of the statements array's bounds will halt the machine, in this case the `halting` property will be true.
+    #pc = Machine.PC_HALT;
     
     constructor() {
         this.registers = new Array(Machine.NUM_REGISTERS).fill(0);
@@ -32,10 +37,33 @@ export class Machine {
         ]);
     }
     
+    get instructionCount() {
+        return this.#statements.length;
+    }
+    
+    /// True if `pc` points to an invalid instruction index, false if `pc` points to a valid instruction index.
+    get halting() {
+        return this.#statements.length == 0;
+    }
+    
+    /// Appends AssemblyStatements to the end of the current set of stored statements.
+    append(statements) {
+        if (!Array.isArray(statements)) { return; }
+        this.#statements = this.#statements.concat(statements);
+    }
+    
+    /// Executes the single next instruction indicated by `pc` and then returns immediately. Does nothing if the machine is currently `halting`.
+    step() {
+        
+    }
+    
+    /// Begins execution at the next instruction indicated by `pc`.
+    /// Execution halts when pc no longer points to a valid instruction index (`halting` is true).
     run() {
-        if (this.pc == Machine.HALT_ADDR) {
-            return;
-        }
+        // TODO: add a max-cycles argument, to give a chance to interrupt infinite loops?
+        // while (!this.halting) {
+        //     this.step();
+        // }
     }
     
     get stateSummary() {
@@ -46,6 +74,11 @@ export class Machine {
     
     // Instruction cycle
     
+    get pc() {
+        return this.#pc;
+    }
+    
+    // TODO: instead, REPL should append one instruction then run.
     execute(instruction, input) {
         instruction.execute(input, this);
     }
@@ -115,9 +148,11 @@ export class DataType {
 /// Specifications for instructions and other details of the Machine's assembly language.
 export class AssemblyLanguage {
     instructionSpecs; // Array of AssemblyInstruction
+    #syntax;
     
     constructor(instructionSpecs) {
         this.instructionSpecs = instructionSpecs;
+        this.#syntax = new AssemblySyntax();
     }
     
     getInstruction(keyword) {
@@ -126,6 +161,58 @@ export class AssemblyLanguage {
             throw Error.machine.unknownInstruction;
         }
         return instruction;
+    }
+    
+    /// Parses a single line of assembly code into an AssemblyStatement.
+    /// Returns a null value, or an AssemblyStatement with a null instruction value, for various types of valid but empty statements.
+    /// Throws a Machine.Error if it fails to parse.
+    assembleStatement(text) {
+        let line = this.#syntax.tokenizeLine(text);
+        if (!line.keyword && !line.comment) { return null; }
+        
+        if (line.keyword) {
+            let instruction = this.getInstruction(line.keyword);
+            if (line.operands.length != instruction.operands.length) {
+                throw Error.machine.invalidInstructionFormat;
+            }
+            let operands = instruction.operands.map((spec, index) => {
+                return {
+                    text: line.operands[index],
+                    value: spec.dataType.parse(line.operands[index])
+                };
+            });
+            return new AssemblyStatement(instruction, operands, line.comment);
+        } else {
+            return new AssemblyStatement(null, [], line.comment);
+        }
+    }
+}
+
+export class AssemblySyntax {
+    /// Enumeration of token types.
+    static TokenCategory = {
+        comment: "comment",
+        keyword: "keyword",
+        operand: "operand"
+    };
+    
+    /// Parses a single line of assembly code into cleaned tokens with metadata.
+    tokenizeLine(text) {
+        let comment = null;
+        let index = text.indexOf("#");
+        if (index >= 0) {
+            comment = text.substring(index + 1).trim();
+            text = text.substring(0, index);
+        }
+        
+        let tokens = text.trim().split(" ").filter(item => item.length > 0);
+        let keyword = tokens.length > 0 ? tokens.shift().toUpperCase() : null;
+        
+        return {
+            keyword: keyword,
+            operands: tokens,
+            comment: comment
+        };
     }
 }
 
@@ -211,6 +298,23 @@ export class AssemblyInstruction {
         description: "Sets $R0 = $R0 + $R1"
     });
 } // end class AssemblyInstruction.
+
+/// A specific invocation of one AssemblyInstruction, with operand values.
+/// Assumes that all values are already validated per the instruction's specifications.
+export class AssemblyStatement {
+    /// AssemblyInstruction. Null indicates no-op, such as a comment line.
+    instruction;
+    /// Array of objects: `{ text, value }`.
+    operands;
+    /// Null if no comment, otherwise a single line of text, no comment delimiter included.
+    comment;
+    
+    constructor(instruction, operands, comment) {
+        this.instruction = instruction;
+        this.operands = operands;
+        this.comment = (!!comment && comment.length > 0) ? comment : null;
+    }
+}
 
 /// An instance of Program is a single execution of a block of code.
 /// 

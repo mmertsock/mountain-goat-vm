@@ -2,6 +2,8 @@
 
 import * as Assembly from './assembly.js';
 
+const [Machine, DataType, AssemblyLanguage, AssemblySyntax, OperandSpec, AssemblyInstruction, AssemblyStatement] = [Assembly.Machine, Assembly.DataType, Assembly.AssemblyLanguage, Assembly.AssemblySyntax, Assembly.OperandSpec, Assembly.AssemblyInstruction, Assembly.AssemblyStatement];
+
 function appendOutputItem(msg, className) {
     if (!TestSession.outputElement) { return; }
     var elem = document.createElement("li");
@@ -32,9 +34,13 @@ function logTestFail(msg) {
 
 export class TestSession {
     constructor(testFuncs) {
-        this.testFuncs = testFuncs;
+        this.testFuncs = Array.isArray(testFuncs) ? testFuncs : [];
         this.testsPassed = 0;
         this.testsFailed = 0;
+    }
+    append(testFuncs) {
+        this.testFuncs = this.testFuncs.concat(testFuncs);
+        return this;
     }
     async run(outputElement) {
         TestSession.outputElement = outputElement;
@@ -212,41 +218,41 @@ class UnitTest {
     }
 }
 
-class AssemblyTests {
+class BaseTypesTests {
     static datatypeTests() {
         new UnitTest("DataType.parse", function() {
             let value = this.assertNoThrow(() => {
-                return Assembly.DataType.word.parse("0");
+                return DataType.word.parse("0");
             }, "word: parse 0");
             this.assertEqual(value, 0, "word: parsed 0");
             
             value = this.assertNoThrow(() => {
-                return Assembly.DataType.word.parse("123");
+                return DataType.word.parse("123");
             }, "word: parse 123");
             this.assertEqual(value, 123, "word: parsed 123");
             
             this.assertThrows(() => {
-                return Assembly.DataType.word.parse("abc");
+                return DataType.word.parse("abc");
             }, "word: parse abc fails");
             
-            this.assertEqual(Assembly.DataType.register.max, Assembly.Machine.NUM_REGISTERS - 1, "register: Max register count = N - 1");
+            this.assertEqual(DataType.register.max, Machine.NUM_REGISTERS - 1, "register: Max register count = N - 1");
             
             value = this.assertNoThrow(() => {
-                return Assembly.DataType.register.parse("0");
+                return DataType.register.parse("0");
             }, "register parse 0");
             this.assertEqual(value, 0, "register: parsed 0");
             
             value = this.assertNoThrow(() => {
-                return Assembly.DataType.register.parse(Assembly.Machine.NUM_REGISTERS - 1);
+                return DataType.register.parse(Machine.NUM_REGISTERS - 1);
             }, "register: parse max allowed");
-            this.assertEqual(value, Assembly.Machine.NUM_REGISTERS - 1, "register: parse max allowed");
+            this.assertEqual(value, Machine.NUM_REGISTERS - 1, "register: parse max allowed");
             
             this.assertThrows(() => {
-                return Assembly.DataType.register.parse(Assembly.Machine.NUM_REGISTERS);
+                return DataType.register.parse(Machine.NUM_REGISTERS);
             }, "register: parse NUM_REGISTERS fails");
             
             this.assertThrows(() => {
-                return Assembly.DataType.register.parse("abc");
+                return DataType.register.parse("abc");
             }, "register: parse abc fails");
         }).buildAndRun();
     }
@@ -261,7 +267,7 @@ class AssemblyTests {
         
         new UnitTest("AssemblyInstruction.setRegister", function() {
             let machine = new StubMachine([0, 0, 0]);
-            let sut = Assembly.AssemblyInstruction.setRegister(3);
+            let sut = AssemblyInstruction.setRegister(3);
             let label = "";
             
             label = "SET (no tokens): ";
@@ -309,7 +315,7 @@ class AssemblyTests {
         
         new UnitTest("AssemblyInstruction.addRegisters", function() {
             let machine = new StubMachine([3, 4, 5]);
-            let sut = Assembly.AssemblyInstruction.addRegisters;
+            let sut = AssemblyInstruction.addRegisters;
             let label = "";
             
             label = "ADD 0: ";
@@ -325,12 +331,165 @@ class AssemblyTests {
             this.assertElementsEqual(machine.registers, [7, 4, 5], label + "sets register 0");
         }).buildAndRun();
     }
-} // end class AssemblyTests
+    
+    static all = [BaseTypesTests.datatypeTests, this.instructionTests];
+}
 
-TestSession.current = new TestSession([
-    AssemblyTests.datatypeTests,
-    AssemblyTests.instructionTests,
-]);
+class AssemblyLanguageTests {
+    static getInstructionTests() {
+        new UnitTest("AssemblyLanguage.getInstruction", function() {
+            let addInstruction = AssemblyInstruction.addRegisters;
+            let setInstruction = AssemblyInstruction.setRegister(Machine.NUM_REGISTERS);
+            let language = new AssemblyLanguage([addInstruction, setInstruction]);
+            
+            this.assertThrows(() => language.getInstruction(undefined), "Throws: undefined keyword");
+            this.assertThrows(() => language.getInstruction(""), "Throws: empty keyword");
+            this.assertThrows(() => language.getInstruction("BOGUS"), "Throws: unknown keyword");
+            this.assertThrows(() => language.getInstruction("aDd"), "Throws: requires case-sensitive match");
+            
+            this.assertEqual(language.getInstruction(setInstruction.keyword), setInstruction, "Get SET");
+            this.assertEqual(language.getInstruction(addInstruction.keyword), addInstruction, "Get ADD");
+        }).buildAndRun();
+    }
+    
+    static parsingTests() {
+        new UnitTest("AssemblySyntax.tokenizeLine", function() {
+            const split = function(obj) { return [obj.keyword, obj.operands.length, obj.comment]; }
+            let syntax = new AssemblySyntax();
+            
+            let result = syntax.tokenizeLine("");
+            this.assertElementsEqual(split(result), [null, 0, null], "empty string");
+            
+            result = syntax.tokenizeLine("     ");
+            this.assertElementsEqual(split(result), [null, 0, null], "all spaces");
+            
+            result = syntax.tokenizeLine("  # this  is a comment     ");
+            this.assertElementsEqual(split(result), [null, 0, "this  is a comment"], "comment line: '#' stripped, comment trimmed, internal spaces preserved");
+            
+            result = syntax.tokenizeLine("ADD");
+            this.assertElementsEqual(split(result), ["ADD", 0, null], "just a keyword");
+            
+            result = syntax.tokenizeLine(" set 1   123  # set  register");
+            this.assertElementsEqual(split(result), ["SET", 2, "set  register"], "keyword, 2 operands, comment, ignores extra spaces outside comment")
+            this.assertElementsEqual(result.operands, ["1", "123"], "2 operands");
+            
+            this.assertElementsEqual(syntax.tokenizeLine("set 3 a 2 4").operands, ["3", "a", "2", "4"], "operand validation is responsibility of the caller");
+        }).buildAndRun();
+        
+        new UnitTest("AssemblyLanguage.assembleStatement", function() {
+            let addInstruction = AssemblyInstruction.addRegisters;
+            let setInstruction = AssemblyInstruction.setRegister(Machine.NUM_REGISTERS);
+            // Varying the order of instructions in AssemblyLanguageTests to ensure 
+            // the order doesn't affect behavior.
+            let language = new AssemblyLanguage([setInstruction, addInstruction]);
+            
+            this.assertEqual(language.assembleStatement(""), null, "Empty text: returns null");
+            this.assertEqual(language.assembleStatement("       "), null, "All spaces: returns null");
+            
+            let statement = language.assembleStatement("# line comment");
+            this.assertEqual(statement.instruction, null, "line comment: no instruction");
+            this.assertEqual(statement.comment, "line comment", "line comment text");
+            
+            this.assertThrows(() => language.assembleStatement("BOGUS"), "Throws: unknown keyword");
+            
+            statement = language.assembleStatement(`${addInstruction.keyword}`);
+            this.assertEqual(statement?.instruction, addInstruction, "ADD: instruction");
+            this.assertEqual(statement?.operands.length, 0, "ADD: no operands");
+            this.assertEqual(statement?.comment, null, "ADD: no comment");
+            
+            this.assertThrows(() => language.assembleStatement("ADD 3 4"), "ADD: rejects any operands");
+            
+            statement = language.assembleStatement("set 1 1234 # set 1234");
+            this.assertEqual(statement?.instruction, setInstruction, "SET: instruction");
+            this.assertElementsEqual(statement?.operands.map(item => item.text), ["1", "1234"], "SET: operand text");
+            this.assertElementsEqual(statement?.operands.map(item => item.value), [1, 1234], "ADD: operand values");
+            this.assertEqual(statement?.comment, "set 1234", "SET: with comment");
+            
+            this.assertThrows(() => language.assembleStatement("SET"), "SET: no operands");
+            this.assertThrows(() => language.assembleStatement("SET 3 1 2 4"), "SET: wrong operand count");
+            this.assertThrows(() => language.assembleStatement("SET 1 abc"), "SET: invalid operand format");
+            this.assertThrows(() => language.assembleStatement("SET def 2"), "SET: invalid operand format");
+            // this.assertThrows(() => language.assembleStatement("SET 0.5 2"), "SET: invalid operand format"); // TODO: implement strict integer parsing
+            this.assertThrows(() => language.assembleStatement("SET 7 2"), "SET: invalid register number");
+        }).buildAndRun();
+    }
+    
+    static all = [AssemblyLanguageTests.getInstructionTests, this.parsingTests];
+}
+
+class MachineTests {
+    static initTests() {
+        new UnitTest("Machine.init", function() {
+            let machine = new Machine();
+            this.assertEqual(machine.registers.length, Machine.NUM_REGISTERS, "Register count is correct");
+            this.assertEqual(machine.registers.filter(r => r == 0).length, Machine.NUM_REGISTERS, "All registers initialized to zero");
+            this.assertEqual(machine.instructionCount, 0, "Initialized with no instructions");
+            this.assertTrue(machine.halting, "Will always halt immediately after init with no instructions");
+        }).buildAndRun();
+    }
+     
+    static statementTests() {
+        new UnitTest("Machine.append", function() {
+            let machine = new Machine();
+            let setInstruction = machine.assemblyLanguage.getInstruction("SET");
+            let addInstruction = machine.assemblyLanguage.getInstruction("ADD");
+            let statements = [
+                new AssemblyStatement(setInstruction, [{ value: 0 }, { value: 5 }], null),
+                new AssemblyStatement(setInstruction, [{ value: 1 }, { value: 10 }], null),
+                new AssemblyStatement(addInstruction, [], null),
+                new AssemblyStatement(addInstruction, [], null)
+            ];
+            
+            this.assertEqual(machine.pc, Machine.PC_HALT, "init PC");
+            
+            machine.append([]);
+            this.assertEqual(machine.instructionCount, 0, "Append no statements: count == 0");
+            this.assertTrue(machine.halting, "Append no statements: still halting");
+            this.assertEqual(machine.pc, Machine.PC_HALT, "Append no statements: PC unchanged");
+            
+            machine.append([statements[0]]);
+            this.assertEqual(machine.instructionCount, 1, "Append 1 statement: count == 1");
+            this.assertFalse(machine.halting, "Append 1 statement: not halting");
+            this.assertEqual(machine.pc, Machine.PC_HALT, "Append 1 statement: PC unchanged");
+            
+            machine.append([statements[1], statements[2]]);
+            this.assertEqual(machine.instructionCount, 3, "Append more statements: count");
+            this.assertFalse(machine.halting, "Append more statements: not halting");
+            this.assertEqual(machine.pc, Machine.PC_HALT, "Append more statements: PC unchanged");
+            
+            // TODO: modify machine.pc, append 1 more statement, check PC unchanged but not PC_HALT
+        }).buildAndRun();
+    }
+    
+    static stepTests() {
+        new UnitTest("Machine.step", function() {
+            // Execute the single next instruction and exit immediately, even if not in a halting state.
+            // Useful for directly unit testing small details of instruction execution. Treat run() as more like an integration test compared to step().
+            
+            // Step with no instructions, with instructions and PC == 0, with instructions and PC in the middle, with instructions but PC is halting
+            
+            // Testing control flow:
+            // Step a single statement, it doesn't set the PC. Increments the PC normally.
+            // Step a single statement, it sets the PC. Respects that, doesn't increment the PC.
+        }).buildAndRun();
+    }
+    
+    static runTests() {
+        new UnitTest("Machine.run", function() {
+            // Degenerate path: run with no statements
+            // Happy path: run a couple of basic statements then halts
+            // Ignores noops/comment lines without problem
+            // Control flow: statement changes PC, next statement the expected one, sets PC to a halting state, halts.
+        }).buildAndRun();
+    }
+    
+    static all = [MachineTests.initTests, this.statementTests, this.stepTests, this.runTests];
+}
+
+TestSession.current = new TestSession()
+    .append(BaseTypesTests.all)
+    .append(AssemblyLanguageTests.all)
+    .append(MachineTests.all);
 
 export async function uiReady() {
     TestSession.current.run(document.querySelector("#testOutput"));
