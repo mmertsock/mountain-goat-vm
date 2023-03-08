@@ -30,13 +30,13 @@ export class Machine {
     #pc;
     
     constructor() {
-        this.registers = new Array(Machine.NUM_REGISTERS).fill(0);
+        this.registers = new Array(Machine.NUM_REGISTERS);
         this.assemblyLanguage = new AssemblyLanguage([
             AssemblyInstruction.setRegister(this.registers.length),
-            AssemblyInstruction.addRegisters
+            AssemblyInstruction.addRegisters,
+            AssemblyInstruction.branchIfZero(this.registers.length)
         ]);
-        this.#statements = [];
-        this.#pc = 0;
+        this.reset({ pc: true, registers: true, statements: true });
     }
     
     /// Appends AssemblyStatements to the end of the current set of stored statements.
@@ -65,6 +65,22 @@ export class Machine {
             return null;
         } else {
             return this.#statements[this.#pc];
+        }
+    }
+    
+    isRegisterIndexValid(rIndex) {
+        return rIndex >= 0 && rIndex < this.registers.length;
+    }
+    
+    reset(config) {
+        if (config.pc) {
+            this.#pc = 0;
+        }
+        if (config.registers) {
+            this.registers.fill(0);
+        }
+        if (config.statements) {
+            this.#statements = [];
         }
     }
     
@@ -106,12 +122,21 @@ export class Machine {
     }
     
     setRegister(rIndex, value) {
-        this.registers[rIndex] = value;
+        if (this.isRegisterIndexValid(rIndex)) {
+            this.registers[rIndex] = value;
+        }
     }
     
     addRegisters() {
         // TODO: handle integer overflow
         this.registers[0] = this.registers[0] + this.registers[1];
+    }
+    
+    branchIfZero(statementIndex, rIndex) {
+        if (this.isRegisterIndexValid(rIndex)
+            && this.registers[rIndex] == 0) {
+            this.setPC(statementIndex);
+        }
     }
 }
 
@@ -264,6 +289,9 @@ export class AssemblyInstruction {
     
     /// Executes this instruction in `machine` with the given tokenized operand text.
     execute(tokens, machine) {
+        // TODO: this is obsolete, use Machine.append + Machine.step or .run
+        throw Error.machine.invalidInstructionFormat;
+            
         if (tokens.length != this.operands.length) {
             throw Error.machine.invalidInstructionFormat;
         }
@@ -314,6 +342,24 @@ export class AssemblyInstruction {
         microcode: Machine.prototype.addRegisters,
         description: "Sets $R0 = $R0 + $R1"
     });
+    
+    static branchIfZero(registerCount) {
+        return new AssemblyInstruction({
+            keyword: "BZ",
+            operands: [
+                new OperandSpec({
+                    placeholder: "p",
+                    dataType: DataType.address
+                }),
+                new OperandSpec({
+                    placeholder: "n",
+                    dataType: DataType.register
+                })
+            ],
+            microcode: Machine.prototype.branchIfZero,
+            description: "Jumps (sets PC) to index p if $Rn == 0"
+        });
+    }
 } // end class AssemblyInstruction.
 
 /// A specific invocation of one AssemblyInstruction, with operand values.

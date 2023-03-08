@@ -257,82 +257,7 @@ class BaseTypesTests {
         }).buildAndRun();
     }
     
-    static instructionTests() {
-        let StubMachine = class {
-            registers;
-            constructor(registers) {
-                this.registers = registers;
-            }
-        };
-        
-        new UnitTest("AssemblyInstruction.setRegister", function() {
-            let machine = new StubMachine([0, 0, 0]);
-            let sut = AssemblyInstruction.setRegister(3);
-            let label = "";
-            
-            label = "SET (no tokens): ";
-            this.assertThrows(() => {
-                sut.execute([], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET 0: ";
-            this.assertThrows(() => {
-                sut.execute(["0"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET 0 1 2: ";
-            this.assertThrows(() => {
-                sut.execute(["0", "1", "2"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET a 1: ";
-            this.assertThrows(() => {
-                sut.execute(["a", "1"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET 0 a: ";
-            this.assertThrows(() => {
-                sut.execute(["0", "a"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET 3 1: ";
-            this.assertThrows(() => {
-                sut.execute(["3", "1"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [0, 0, 0], label + "no state change");
-            
-            label = "SET 0 1: ";
-            this.assertNoThrow(() => {
-                sut.execute(["0", "1"], machine);
-            }, label + "execute");
-            this.assertElementsEqual(machine.registers, [1, 0, 0], label + "sets register 0");
-        }).buildAndRun();
-        
-        new UnitTest("AssemblyInstruction.addRegisters", function() {
-            let machine = new StubMachine([3, 4, 5]);
-            let sut = AssemblyInstruction.addRegisters;
-            let label = "";
-            
-            label = "ADD 0: ";
-            this.assertThrows(() => {
-                sut.execute(["0"], machine);
-            }, label + "invalid");
-            this.assertElementsEqual(machine.registers, [3, 4, 5], label + "no state change");
-            
-            label = "ADD: ";
-            this.assertNoThrow(() => {
-                sut.execute([], machine);
-            }, label + "execute");
-            this.assertElementsEqual(machine.registers, [7, 4, 5], label + "sets register 0");
-        }).buildAndRun();
-    }
-    
-    static all = [BaseTypesTests.datatypeTests, this.instructionTests];
+    static all = [BaseTypesTests.datatypeTests];
 }
 
 class AssemblyLanguageTests {
@@ -428,6 +353,40 @@ class MachineTests {
             this.assertEqual(machine.nextInstruction, null, "nextInstruction always null after init with no instructions");
         }).buildAndRun();
     }
+    
+    static microcodeTests() {
+        new UnitTest("Machine.setRegister microcode", function() {
+            let machine = new Machine();
+            this.assertEqual(machine.registers.filter(r => r == 0).length, Machine.NUM_REGISTERS, "init: all registers zero");
+            
+            machine.setRegister(0, 3);
+            machine.setRegister(1, 7);
+            this.assertElementsEqual(machine.registers, [3, 7], "setRegister updates various registers");
+        }).buildAndRun();
+        
+        new UnitTest("Machine.addRegisters microcode", function() {
+            let machine = new Machine();
+            machine.registers[0] = 3;
+            machine.registers[1] = 7;
+            
+            machine.addRegisters();
+            this.assertElementsEqual(machine.registers, [10, 7], "addRegisters");
+        }).buildAndRun();
+        
+        new UnitTest("Machine.branchIfZero microcode", function() {
+            let machine = new Machine();
+            machine.registers[0] = 3;
+            machine.registers[1] = 0;
+            
+            let pc0 = machine.pc;
+        
+            machine.branchIfZero(9, 0);
+            this.assertEqual(machine.pc, pc0, "branchIfZero, register != 0: no PC change");
+            
+            machine.branchIfZero(9, 1);
+            this.assertEqual(machine.pc, 9, "branchIfZero, register == 0: PC updated");
+        }).buildAndRun();
+    }
      
     static statementTests() {
         new UnitTest("Machine.append", function() {
@@ -490,13 +449,11 @@ class MachineTests {
             this.assertEqual(machine.pc, pc, "step with no statements loaded: PC unchanged");
             this.assertTrue(machine.halting, "step with no statements loaded: halting");
             
-            console.log("~~~~ step with 1 statement loaded ~~~~");
             machine.append([statements[0]]);
             machine.step();
             this.assertEqual(machine.registers[1], 10, "step with 1 statement loaded: executed statement");
             this.assertTrue(machine.halting, "step with 1 statement loaded: halting");
             
-            console.log("~~~~ step after 1 statement executed ~~~~");
             machine.step();
             this.assertTrue(machine.halting, "step after 1 statement executed: halting");
             
@@ -509,15 +466,13 @@ class MachineTests {
             this.assertEqual(machine.registers[0], 10, "step after second statement: noop");
             this.assertTrue(machine.halting, "step after second statement: halting");
             
-            // Manually start over with instructions still loaded.
-            machine.setPC(pc);
-            machine.setRegister(1, 0);
+            machine.reset({ pc: true, registers: true, statements: false });
             
             machine.step();
             this.assertEqual(machine.registers[1], 10, "step after reset PC: executed SET");
             this.assertFalse(machine.halting, "step after reset PC: not halting");
             machine.step();
-            this.assertEqual(machine.registers[0], 20, "second step after reset PC: executed AD");
+            this.assertEqual(machine.registers[0], 10, "second step after reset PC: executed ADD");
             this.assertTrue(machine.halting, "second step after reset PC: halting");
         }).buildAndRun();
         
@@ -537,11 +492,6 @@ class MachineTests {
             machine.step();
             this.assertEqual(machine.registers[1], 10, "SET after noop step: SET executed");
             this.assertEqual(machine.pc, pc0 + 2, "SET after noop step: PC incremented");
-        }).buildAndRun();
-        
-        new UnitTest("Machine.step: control flow", function() {
-            // Step a single statement, it doesn't set the PC. Increments the PC normally.
-            // Step a single statement, it sets the PC. Respects that, doesn't increment the PC.
         }).buildAndRun();
     }
     
@@ -575,12 +525,47 @@ class MachineTests {
             machine.run();
             this.assertElementsEqual([machine.registers[0], machine.registers[1]], [20, 10], "Run after reset PC: statements executed, registers updated");
             this.assertTrue(machine.halting, "Run after reset PC: halting");
-            
-            // TODO: Control flow: statement changes PC, next statement the expected one, sets PC to a halting state, halts.
         }).buildAndRun();
     }
     
-    static all = [MachineTests.initTests, this.statementTests, this.stepTests, this.runTests];
+    static controlFlowTests() {
+        new UnitTest("Machine: control flow", function() {
+            let machine = new Machine();
+            let setInstruction = machine.assemblyLanguage.getInstruction("SET");
+            let addInstruction = machine.assemblyLanguage.getInstruction("ADD");
+            let branchIfZeroInstruction = machine.assemblyLanguage.getInstruction("BZ");
+            
+            let statements = [
+                new AssemblyStatement(setInstruction, [1, 5], "SET 1 5", null),
+                new AssemblyStatement(branchIfZeroInstruction, [3, 0], "BZ 3 0", null),
+                new AssemblyStatement(setInstruction, [0, 6], "SET 0 6", null),
+                new AssemblyStatement(addInstruction, [], "ADD", null)
+            ];
+            
+            machine.append(statements);
+            let pc0 = machine.pc;
+            
+            machine.step();
+            this.assertElementsEqual([machine.registers[0], machine.registers[1]], [0, 5], "first SET: registers updated");
+            this.assertEqual(machine.pc, pc0 + 1, "first SET: pc incremented");
+            
+            machine.step();
+            this.assertEqual(machine.pc, pc0 + 3, "BZ: pc updated to skip second SET");
+            this.assertFalse(machine.halting, "BZ: not halting yet");
+            
+            machine.step();
+            this.assertElementsEqual([machine.registers[0], machine.registers[1]], [5, 5], "final step: ADD executed, second SET skipped");
+            this.assertTrue(machine.halting, "final step: halting");
+            
+            machine.reset({ pc: true, registers: true, statements: false });
+            
+            machine.run();
+            this.assertElementsEqual([machine.registers[0], machine.registers[1]], [5, 5], "run full program: first SET, BZ skips second SET, ADD");
+            this.assertTrue(machine.halting, "run full program: halting at end");
+        }).buildAndRun();
+    }
+    
+    static all = [MachineTests.initTests, this.microcodeTests, this.statementTests, this.stepTests, this.runTests, this.controlFlowTests];
 }
 
 TestSession.current = new TestSession()
